@@ -210,6 +210,11 @@ class MBart50Tokenizer(PreTrainedTokenizer):
         self.sp_model.Load(self.vocab_file)
 
     def get_vocab(self) -> Dict:
+        # Guard: during __init__, super().__init__() may call get_vocab() via _add_tokens()
+        # before sp_model and related attributes are initialized. In that case, vocab_size
+        # cannot be computed yet, so return an empty dict to avoid TypeError.
+        if not hasattr(self, "sp_model") or self.sp_model is None:
+            return {}
         vocab = {self.convert_ids_to_tokens(i): i for i in range(self.vocab_size)}
         vocab.update(self.added_tokens_encoder)
         return vocab

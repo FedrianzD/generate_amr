@@ -1,3 +1,2 @@
-venv/
-fine-tune/
-example.ipynb
+venv*/
+__pycache__
