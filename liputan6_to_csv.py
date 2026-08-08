@@ -43,12 +43,15 @@ def detokenize(tokens):
     reads naturally: "Liputan6.com, Jakarta:".
     """
     text = " ".join(tokens)
-    # No space before closing punctuation
+    # No space before closing punctuation: "Jakarta :" -> "Jakarta:"
     text = re.sub(r"\s+([.,;:!?%)\]}])", r"\1", text)
-    # No space after opening brackets
+    # No space after opening brackets: "( KAA )" -> "(KAA)"
     text = re.sub(r"([(\[{])\s+", r"\1", text)
-    # Glue back things like "Liputan6 . com" -> "Liputan6.com"
-    text = re.sub(r"\s+\.\s+(com|co|id)\b", r".\1", text)
+    # Domains: "Liputan6. com" -> "Liputan6.com". Must run AFTER the rule above,
+    # which has already removed the space before the dot.
+    text = re.sub(r"\.\s+(com|co|id|net|org)\b", r".\1", text)
+    # Numbers split around punctuation: "14. 00" -> "14.00", "1, 5" -> "1,5"
+    text = re.sub(r"(\d)([.,])\s+(?=\d)", r"\1\2", text)
     return text.strip()
 
 
