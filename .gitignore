@@ -4,3 +4,6 @@ __pycache__
 # Raw Liputan6 dataset (16k JSON files) and generated CSV — regenerate with liputan6_to_csv.py
 Liputan6/
 analysis_data.csv
+
+# Kaggle upload build artifacts (regenerate: python prepare_kaggle_datasets.py)
+kaggle_uploads/
