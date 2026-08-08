@@ -58,6 +58,19 @@ def article_to_text(clean_article):
     return " ".join(s for s in sentences if s)
 
 
+def split_of(json_path, input_dir):
+    """Split name = the directory under `input_dir` holding the file.
+
+    Liputan6 canonical is laid out as canonical/<split>/<id>.json, so the parent
+    directory name is the split ("train" / "test" / "dev"). Recorded per row so
+    downstream steps can select a split instead of silently mixing them - note
+    that sorted() puts canonical/test before canonical/train, so "the first N
+    rows" is NOT the training set.
+    """
+    rel = json_path.relative_to(input_dir)
+    return rel.parts[0] if len(rel.parts) > 1 else "unknown"
+
+
 def convert(input_dir, output_csv, mode="sentence"):
     input_dir = Path(input_dir)
     json_files = sorted(input_dir.rglob("*.json"))
@@ -71,6 +84,7 @@ def convert(input_dir, output_csv, mode="sentence"):
             with open(jf, "r", encoding="utf-8") as f:
                 data = json.load(f)
             doc_id = str(data["id"])
+            split = split_of(jf, input_dir)
             clean_article = data["clean_article"]
 
             if mode == "article":
@@ -78,7 +92,8 @@ def convert(input_dir, output_csv, mode="sentence"):
                 if not text:
                     skipped_docs += 1
                     continue
-                rows.append({"id": doc_id, "doc_id": doc_id, "sent_idx": -1, "text": text})
+                rows.append({"id": doc_id, "doc_id": doc_id, "split": split,
+                             "sent_idx": -1, "text": text})
             else:  # sentence
                 for i, sent_tokens in enumerate(clean_article):
                     text = detokenize(sent_tokens)
@@ -87,19 +102,28 @@ def convert(input_dir, output_csv, mode="sentence"):
                         continue
                     # id = "{doc_id}_{sent_idx}" -> unique filename per sentence
                     rows.append({"id": f"{doc_id}_{i}", "doc_id": doc_id,
-                                 "sent_idx": i, "text": text})
+                                 "split": split, "sent_idx": i, "text": text})
         except Exception as e:
             skipped_docs += 1
             print(f"  Skipped {jf.name}: {e}")
 
     with open(output_csv, "w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["id", "doc_id", "sent_idx", "text"])
+        writer = csv.DictWriter(f, fieldnames=["id", "doc_id", "split", "sent_idx", "text"])
         writer.writeheader()
         writer.writerows(rows)
 
     n_docs = len(set(r["doc_id"] for r in rows))
     print(f"Wrote {len(rows)} rows from {n_docs} documents to {output_csv}")
     print(f"  (skipped {skipped_sents} empty sentences, {skipped_docs} bad/empty docs)")
+
+    by_split = {}
+    for r in rows:
+        s = by_split.setdefault(r["split"], {"sents": 0, "docs": set()})
+        s["sents"] += 1
+        s["docs"].add(r["doc_id"])
+    print("  Per split:")
+    for s, v in sorted(by_split.items()):
+        print(f"    {s:8s}: {v['sents']:>7} sentences / {len(v['docs']):>6} docs")
 
 
 if __name__ == "__main__":
