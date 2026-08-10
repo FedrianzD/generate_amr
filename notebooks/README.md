@@ -10,6 +10,10 @@
 | [`xlsum/translate_nllb.ipynb`](xlsum/translate_nllb.ipynb) | Upstream (Aimar). XLSum id→en with NLLB. |
 | [`example_amrbart_inference.ipynb`](example_amrbart_inference.ipynb) | Upstream AMRBART demo: parse a couple of sentences. |
 
+> **Working on Liputan6?** Read [`liputan6/README.md`](liputan6/README.md) first.
+> Abdi's checkpoint disagrees with its own tokenizer on nearly every special
+> token, and three of the resulting bugs are completely silent.
+
 ## Which one to run
 
 For Liputan6, use **`liputan6/amr_parse_id2id_abdi.ipynb`**. It parses Indonesian
