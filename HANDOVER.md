@@ -17,7 +17,7 @@ matrix → GCN. **This repo covers the AMR-parsing stage only.**
 
 AMR parsing is **complete** for the assigned scope:
 
-- **9,998 graphs / 767 documents**, Liputan6 `train` split, 100% `OK` status
+- **9,994 graphs / 767 documents**, Liputan6 `train` split, 100% `OK` status
 - Ran on Kaggle T4 in two sessions (8.0 h then ~3 h) via
   `notebooks/liputan6/amr_parse_id2id_abdi.ipynb`
 - Output lives in the Kaggle dataset **`liputan6-amr-graphs`**, one
