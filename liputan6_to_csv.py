@@ -16,6 +16,10 @@ Granularity (matches the Aimar/Fajri AMR-GNN research pipeline):
 sentence-split, so no SpaCy is needed. Tokens are lightly de-tokenized so the
 text reads naturally for the NLLB translator and the AMR parser.
 
+Sentence 0 additionally has the "Liputan6.com, <city>:" dateline stripped - it
+is masthead boilerplate, not article content, and it otherwise turns up as a
+publication/location predicate in the AMR of every single document.
+
 Usage:
     python liputan6_to_csv.py \
         --input  Liputan6/liputan6/liputan6_data/canonical \
@@ -55,9 +59,50 @@ def detokenize(tokens):
     return text.strip()
 
 
+# The masthead as it survives detokenize(), tolerating "Liputan 6 . com" spacing
+# and the lowercase spellings that appear in a few hundred documents.
+_MASTHEAD = r"Liputan\s?6\s*\.\s*com"
+
+# Leading dateline: "Liputan6.com, Jakarta:" and its damaged variants. The
+# leading .{0,120}? absorbs scrape debris that got glued on in front of the
+# masthead - a stray ")" or "B", and in ~30 documents the article HEADLINE plus
+# leftover HTML attributes, e.g.
+#   'Jenazah ... Dimakamkanfont color= " ffff00 " Liputan6.com, Yogyakarta: '
+# None of that is article text, so removing it with the dateline is the point.
+DATELINE = re.compile(
+    r"""^.{0,120}?            # scrape debris / glued-in headline + markup
+        """ + _MASTHEAD + r"""
+        \s*,?\s*              # comma before the city
+        [^:]{0,40}?           # dateline city
+        \s*:\s*               # the colon that terminates the dateline
+    """, re.X | re.I)
+
+# ~4 documents write the dateline with no colon ("Liputan6.com, Mimika Sepasang
+# cahaya ..."), where the city cannot be told apart from the first word of the
+# sentence. Drop only the masthead there and leave the city in the text.
+LEAD_MASTHEAD = re.compile(r"^\W{0,4}" + _MASTHEAD + r"\s*,?\s*", re.I)
+
+
+def strip_dateline(text):
+    """Remove the "Liputan6.com, <city>:" boilerplate from a lede sentence.
+
+    Applied ONLY to sentence 0, which is where every dateline lives. The 45
+    other mentions in the corpus are ordinary content - "berdialog dengan
+    netters Liputan6.com", "Tim liputan6.com SCTV", "www. liputan6.com" - and
+    deleting those would leave ungrammatical sentences for the parser.
+    """
+    prev = None
+    while prev != text:              # a few ledes carry two stacked datelines
+        prev = text
+        text = DATELINE.sub("", text, count=1)
+    return LEAD_MASTHEAD.sub("", text).strip()
+
+
 def article_to_text(clean_article):
     """clean_article -> single text block (all sentences joined)."""
     sentences = [detokenize(sent) for sent in clean_article]
+    if sentences:
+        sentences[0] = strip_dateline(sentences[0])
     return " ".join(s for s in sentences if s)
 
 
@@ -82,6 +127,7 @@ def convert(input_dir, output_csv, mode="sentence"):
     rows = []
     skipped_sents = 0
     skipped_docs = 0
+    n_datelines = 0
     for jf in json_files:
         try:
             with open(jf, "r", encoding="utf-8") as f:
@@ -100,6 +146,11 @@ def convert(input_dir, output_csv, mode="sentence"):
             else:  # sentence
                 for i, sent_tokens in enumerate(clean_article):
                     text = detokenize(sent_tokens)
+                    if i == 0:
+                        stripped = strip_dateline(text)
+                        if stripped != text:
+                            n_datelines += 1
+                        text = stripped
                     if not text:
                         skipped_sents += 1
                         continue
@@ -118,6 +169,8 @@ def convert(input_dir, output_csv, mode="sentence"):
     n_docs = len(set(r["doc_id"] for r in rows))
     print(f"Wrote {len(rows)} rows from {n_docs} documents to {output_csv}")
     print(f"  (skipped {skipped_sents} empty sentences, {skipped_docs} bad/empty docs)")
+    if mode == "sentence":
+        print(f"  (stripped the Liputan6.com dateline from {n_datelines} lede sentences)")
 
     by_split = {}
     for r in rows:
