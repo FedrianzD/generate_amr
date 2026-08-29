@@ -2,7 +2,10 @@ venv*/
 __pycache__
 
 # Raw Liputan6 dataset (16k JSON files) and generated CSV — regenerate with liputan6_to_csv.py
-Liputan6/
+# Leading slash anchors this to the repo root. Without it the pattern matches at
+# ANY depth and (case-insensitively on Windows) also swallowed notebooks/liputan6/,
+# which is why its README was invisible to git for two weeks.
+/Liputan6/
 analysis_data.csv
 
 # Kaggle upload build artifacts (regenerate: python prepare_kaggle_datasets.py)
