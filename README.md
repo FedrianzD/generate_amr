@@ -29,61 +29,20 @@ This project supports two tasks:
 
 ## Project Structure
 
-```
+```text
 generate_amr/
-├── common/                        # Shared utilities & configuration
-│   ├── additional-tokens.json     # AMR-specific vocabulary tokens
-│   ├── callbacks.py               # Training callbacks
-│   ├── constant.py                # Constants, schedulers, tokenizer/model mappings
-│   ├── options.py                 # Dataclass argument definitions (Model, Data, Training)
-│   ├── penman_interface.py        # Penman graph encoding utilities
-│   ├── postprocessing.py          # AMR postprocessing & graph normalization
-│   ├── training_args.py           # Extended HuggingFace TrainingArguments
-│   └── utils.py                   # Smart embedding init, Smatch calculation, etc.
-│
-├── model_interface/               # Custom model & tokenizer implementations
-│   ├── modeling_bart.py           # MBart-based conditional generation model
-│   ├── modeling_outputs.py        # Custom model output dataclasses
-│   ├── tokenization_bart.py       # AMRBartTokenizer (AMR-aware tokenization)
-│   └── tokenization_mbart50.py    # Base MBart50 tokenizer
-│
-├── finetune/                      # Training, evaluation & inference scripts
-│   ├── main.py                    # Main training/eval entry point
-│   ├── seq2seq_trainer.py         # Custom Seq2Seq trainer
-│   ├── base_trainer.py            # Base trainer with extended functionality
-│   ├── postprocess.py             # Output postprocessing
-│   │
-│   ├── data_interface/            # Standard dataset loading
-│   │   ├── data.py
-│   │   └── dataset.py
-│   ├── data_interface_concat/     # Concatenated input format dataset loading
-│   │
-│   ├── evaluation/                # Evaluation scripts & tools
-│   │   ├── eval_gen.py            # Text generation evaluation
-│   │   ├── eval_gen.sh
-│   │   ├── eval_smatch.py         # Smatch score evaluation
-│   │   ├── eval_smatch.sh
-│   │   └── cdec-corpus/           # Corpus processing tools
-│   │
-│   ├── metric/
-│   │   └── sacrebleu.py           # SacreBLEU metric implementation
-│   │
-│   ├── train-AMRBART-large-AMRParsing.sh   # Train: Text → AMR
-│   ├── train-AMRBART-large-AMR2Text.sh     # Train: AMR → Text
-│   ├── Eval-AMRBART-large-AMRParsing.sh    # Evaluate: Text → AMR
-│   ├── Eval-AMRBART-large-AMR2Text.sh      # Evaluate: AMR → Text
-│   ├── inference-amr.sh                     # Inference: Text → AMR
-│   ├── inference-text.sh                    # Inference: AMR → Text
-│   ├── train.sh                             # Generic training script
-│   ├── eval.sh                              # Generic evaluation script
-│   └── inference.sh                         # Generic inference script
-│
-├── example.ipynb                  # Example notebook for AMR parsing
-├── parser.ipynb                   # AMR parsing notebook (local)
-├── parser_kaggle.ipynb            # AMR parsing notebook (Kaggle)
-├── translation.ipynb              # Translation notebook
-├── prepare_kaggle_datasets.py     # Prepare datasets for Kaggle upload
-├── requirements.txt               # Python dependencies
+├── common/                  # Shared AMR utilities and configuration
+├── model_interface/         # Custom models and tokenizers
+├── finetune/                # Training, evaluation, and inference
+├── notebooks/
+│   ├── liputan6/            # Liputan 6 parsing and SMATCH workflows
+│   └── xlsum/               # XLSum reference workflows
+├── scripts/
+│   ├── liputan6/            # Liputan 6 conversion and adjacency tools
+│   └── prepare_kaggle_datasets.py
+├── data/                    # Local datasets; see data/README.md
+├── artifacts/               # Generated upload bundles (Git-ignored)
+├── requirements.txt
 └── .gitignore
 ```
 
@@ -91,7 +50,7 @@ generate_amr/
 
 ## Requirements
 
-- **Python** 3.8+
+- **Python** 3.10+
 - **PyTorch** (with CUDA support recommended)
 - **GPU**: NVIDIA GPU with ≥16 GB VRAM recommended for training
 
@@ -152,12 +111,8 @@ All training and inference scripts are located in the `finetune/` directory. Bef
 
 ## Notebooks
 
-| Notebook              | Description                                        |
-| --------------------- | -------------------------------------------------- |
-| `example.ipynb`       | Walkthrough example for AMR parsing and generation |
-| `parser.ipynb`        | Full AMR parsing pipeline (local execution)        |
-| `parser_kaggle.ipynb` | AMR parsing adapted for Kaggle environment         |
-| `translation.ipynb`   | Translation-related experiments                    |
+See `notebooks/README.md` for the notebook index. Liputan 6 workflows are in
+`notebooks/liputan6/`; XLSum reference workflows are in `notebooks/xlsum/`.
 
 ---
 
@@ -168,10 +123,10 @@ To run this project on Kaggle:
 1. **Prepare upload packages**:
 
    ```bash
-   python prepare_kaggle_datasets.py
+   python scripts/prepare_kaggle_datasets.py
    ```
 
-   This creates zip files in `kaggle_uploads/`:
+   This creates zip files in `artifacts/kaggle/`:
    - `amr-code-modules.zip` — `common/` and `model_interface/` modules
    - `amr-model.zip` — Finetuned model weights
 
@@ -180,7 +135,8 @@ To run this project on Kaggle:
    - `amr-model` → Model weights
    - `xlsum-translate-data` → XLSum data files
 
-3. **Create a Kaggle Notebook**, add all three datasets, enable GPU, and use `parser_kaggle.ipynb` as a starting point.
+3. **Create a Kaggle Notebook**, add all three datasets, enable GPU, and use
+   `notebooks/xlsum/parser_kaggle.ipynb` as a starting point.
 
 ---
 

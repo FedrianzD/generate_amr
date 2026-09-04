@@ -8,7 +8,7 @@ It creates the following:
   3. (Instructions)        — for xlsum data (too large to zip here)
 
 Usage:
-    python prepare_kaggle_datasets.py
+    python scripts/prepare_kaggle_datasets.py
 
 After running, upload the generated zip files to Kaggle:
   - Go to https://www.kaggle.com/datasets
@@ -16,21 +16,21 @@ After running, upload the generated zip files to Kaggle:
   - Upload each zip file as a separate dataset
 """
 
+import argparse
 import os
-import sys
 import zipfile
 from pathlib import Path
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR  # generate_amr/
+PROJECT_ROOT = SCRIPT_DIR.parent
 
 COMMON_DIR = PROJECT_ROOT / "common"
 MODEL_INTERFACE_DIR = PROJECT_ROOT / "model_interface"
 MODEL_DIR = PROJECT_ROOT.parent / "models" / "mbart-en-id-smaller-concat-finetuned" / "mbart-en-id-smaller-concat-finetuned"
 XLSUM_DIR = PROJECT_ROOT.parent / "data" / "xlsum"
 
-OUTPUT_DIR = PROJECT_ROOT / "kaggle_uploads"
+OUTPUT_DIR = PROJECT_ROOT / "artifacts" / "kaggle"
 
 
 def create_code_modules_zip():
@@ -120,13 +120,24 @@ KAGGLE DATASET NAMING:
 """)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--create-model",
+        action="store_true",
+        help="create the large model ZIP without an interactive prompt",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     print("=" * 70)
     print("KAGGLE DATASET PREPARATION SCRIPT")
     print("=" * 70)
 
     # Create output directory
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     print(f"Output directory: {OUTPUT_DIR}")
 
     # Step 1: Code modules
@@ -135,11 +146,10 @@ def main():
     # Step 2: Model (this will be large ~1.5GB)
     print("\n" + "-" * 70)
     print("NOTE: The model zip will be ~1.5GB. This may take a few minutes.")
-    response = input("Create model zip? (y/n): ").strip().lower()
-    if response == "y":
-        model_zip = create_model_zip()
+    if args.create_model:
+        create_model_zip()
     else:
-        print("  Skipped model zip creation.")
+        print("  Skipped model zip creation (pass --create-model to include it).")
         print(f"  You can manually upload the model directory from:")
         print(f"    {MODEL_DIR}")
 

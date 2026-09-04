@@ -21,9 +21,9 @@ is masthead boilerplate, not article content, and it otherwise turns up as a
 publication/location predicate in the AMR of every single document.
 
 Usage:
-    python liputan6_to_csv.py \
-        --input  Liputan6/liputan6/liputan6_data/canonical \
-        --output analysis_data.csv \
+    python scripts/liputan6/liputan6_to_csv.py \
+        --input  data/liputan6/source/Liputan6/liputan6/liputan6_data/canonical \
+        --output data/liputan6/processed/analysis_data.csv \
         --mode   sentence
 
 Then upload `analysis_data.csv` to Kaggle as part of the `liputan6-data`
@@ -36,6 +36,10 @@ import json
 import argparse
 import csv
 from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LIPUTAN6_DATA_DIR = PROJECT_ROOT / "data" / "liputan6"
 
 
 def detokenize(tokens):
@@ -121,6 +125,7 @@ def split_of(json_path, input_dir):
 
 def convert(input_dir, output_csv, mode="sentence"):
     input_dir = Path(input_dir)
+    output_csv = Path(output_csv)
     json_files = sorted(input_dir.rglob("*.json"))
     print(f"Found {len(json_files)} JSON files under {input_dir} (mode={mode})")
 
@@ -161,6 +166,7 @@ def convert(input_dir, output_csv, mode="sentence"):
             skipped_docs += 1
             print(f"  Skipped {jf.name}: {e}")
 
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(output_csv, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["id", "doc_id", "split", "sent_idx", "text"])
         writer.writeheader()
@@ -186,10 +192,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--input",
-        default="Liputan6/liputan6/liputan6_data/canonical",
+        default=LIPUTAN6_DATA_DIR / "source" / "Liputan6" / "liputan6" / "liputan6_data" / "canonical",
+        type=Path,
         help="Directory containing Liputan6 canonical JSON (searched recursively)",
     )
-    ap.add_argument("--output", default="analysis_data.csv")
+    ap.add_argument(
+        "--output",
+        default=LIPUTAN6_DATA_DIR / "processed" / "analysis_data.csv",
+        type=Path,
+    )
     ap.add_argument("--mode", choices=["sentence", "article"], default="sentence",
                     help="sentence: one AMR per sentence (default, matches AMR-GNN pipeline); "
                          "article: one AMR per whole article")

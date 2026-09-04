@@ -53,15 +53,17 @@ against the checkpoint's reference file — keep them.
 | --- | --- |
 | `notebooks/liputan6/amr_parse_id2id_abdi.ipynb` | the parser that produced the output |
 | `notebooks/liputan6/README.md` | gotchas, Kaggle setup, pipeline |
-| `liputan6_to_csv.py` | Liputan6 JSON → `analysis_data.csv`, per sentence, with `split` |
-| `analysis_data.csv` | 195,779 sentences / 16,350 docs (git-ignored, regenerate) |
+| `scripts/liputan6/liputan6_to_csv.py` | Liputan6 JSON → `analysis_data.csv`, per sentence, with `split` |
+| `scripts/liputan6/build_smatch_adjacency.py` | Sentence AMR archives → document-level SMATCH matrices |
+| `data/liputan6/processed/analysis_data.csv` | 195,779 sentences / 16,350 docs (git-ignored, regenerate) |
+| `notebooks/liputan6/smatch_adjacency.ipynb` | One-document SMATCH adjacency demonstration |
 | `notebooks/liputan6/*_nafkhan.ipynb`, `*_nllb.ipynb` | parked concat route — needs translation, weights not public |
 | `notebooks/xlsum/` | Aimar's upstream XLSum notebooks, reference only |
 
 Regenerate the CSV with:
 
 ```bash
-python liputan6_to_csv.py --input "Liputan6/liputan6/liputan6_data/canonical" --output "analysis_data.csv" --mode sentence
+python scripts/liputan6/liputan6_to_csv.py --mode sentence
 ```
 
 ## Open questions
@@ -84,4 +86,4 @@ python liputan6_to_csv.py --input "Liputan6/liputan6/liputan6_data/canonical" --
 - Caps must take **whole documents**; a partial document is useless downstream.
 - Liputan6 is already sentence-segmented (no SpaCy needed — this avoids the
   misalignment that forced truncation on XLSum) but is word-tokenized with
-  punctuation split off, which `liputan6_to_csv.py` undoes.
+  punctuation split off, which `scripts/liputan6/liputan6_to_csv.py` undoes.

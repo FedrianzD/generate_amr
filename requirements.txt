@@ -1,4 +1,9 @@
 tensorboardX
+numpy
+pandas
+notebook
+ipykernel
+tqdm
 h5py-cache
 configargparse
 sacrebleu
