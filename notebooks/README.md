@@ -3,7 +3,10 @@
 | Notebook | What it does |
 | --- | --- |
 | [`liputan6/amr_parse_id2id_abdi.ipynb`](liputan6/amr_parse_id2id_abdi.ipynb) | **Active.** Liputan6 → AMR with Abdi's monolingual ID→ID parser. No translation. |
+| [`liputan6/amr_parse_id2id_abdi_gcp.ipynb`](liputan6/amr_parse_id2id_abdi_gcp.ipynb) | GCP/local-GPU variant of the active Liputan6 parser. |
 | [`liputan6/document_pairwise_smatch.ipynb`](liputan6/document_pairwise_smatch.ipynb) | Inspect every sentence pair and SMATCH score within one Liputan 6 document. |
+| [`liputan6/check_extractive_vs_smatch_colab.ipynb`](liputan6/check_extractive_vs_smatch_colab.ipynb) | Self-contained extractive-ground-truth vs SMATCH analysis for data on Colab Enterprise. |
+| [`liputan6/temporary_external_smatch.ipynb`](liputan6/temporary_external_smatch.ipynb) | Temporary SMATCH diagnostic; not the main pipeline entry point. |
 | [`liputan6/translate_id2en_nllb.ipynb`](liputan6/translate_id2en_nllb.ipynb) | Parked. Liputan6 id→en with NLLB-1.3B; only needed for the concat route. |
 | [`liputan6/amr_parse_id2en_concat_nafkhan.ipynb`](liputan6/amr_parse_id2en_concat_nafkhan.ipynb) | Parked. Liputan6 → AMR with Nafkhan's concat parser (needs translations, weights not public). |
 | [`xlsum/parser_local.ipynb`](xlsum/parser_local.ipynb) | Upstream (Aimar). XLSum → AMR, run locally with the concat model. |
@@ -37,8 +40,8 @@ Upload two datasets:
 
 | Dataset title | File |
 | --- | --- |
-| `amr-code-modules` | `artifacts/kaggle/amr-code-modules.zip` (run `scripts/prepare_kaggle_datasets.py`) |
-| `liputan6-data` | `analysis_data.csv` (run `scripts/liputan6/liputan6_to_csv.py`) |
+| `amr-code-modules` | `artifacts/kaggle/amr-code-modules.zip` (see [`scripts/README.md`](../scripts/README.md)) |
+| `liputan6-data` | `analysis_data.csv` (see [`scripts/README.md`](../scripts/README.md)) |
 
 Then import the notebook, add both as Input, enable **GPU T4** and **Internet ON**
 (the model is downloaded at runtime), run cell 1, switch the kernel to
@@ -46,9 +49,17 @@ Then import the notebook, add both as Input, enable **GPU T4** and **Internet ON
 
 ## A note on paths
 
-The `liputan6/` notebooks and `xlsum/parser_kaggle.ipynb` use absolute
-`/kaggle/input/...` paths, so their location in this repo does not matter.
+Every notebook uses explicit absolute paths for stable locations such as model,
+dataset, module, archive, and output directories. None of them determines those
+locations from the current working directory. Edit the path constants in the
+notebook's setup/configuration cell when moving between local Windows, Kaggle,
+and GCP/Colab Enterprise. Paths for individual files whose names depend on a
+document or sentence ID are still assembled at runtime.
 
-The other upstream notebooks use paths relative to the notebook's own directory
-and were written to sit at the repo root; they were adjusted when moved here, and
-still expect `models/` and `data/` to live one level *above* the repo.
+## Open a local notebook
+
+From the repository root:
+
+```powershell
+conda run --name generate_amr jupyter notebook notebooks/liputan6/document_pairwise_smatch.ipynb
+```

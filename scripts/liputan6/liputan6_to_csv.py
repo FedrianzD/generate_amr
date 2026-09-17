@@ -21,7 +21,7 @@ is masthead boilerplate, not article content, and it otherwise turns up as a
 publication/location predicate in the AMR of every single document.
 
 Usage:
-    python scripts/liputan6/liputan6_to_csv.py \
+    conda run --name generate_amr python scripts/liputan6/liputan6_to_csv.py \
         --input  data/liputan6/source/Liputan6/liputan6/liputan6_data/canonical \
         --output data/liputan6/processed/analysis_data.csv \
         --mode   sentence

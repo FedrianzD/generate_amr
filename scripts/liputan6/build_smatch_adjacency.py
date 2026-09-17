@@ -1,22 +1,19 @@
 """Build document-level SMATCH adjacency matrices for Liputan 6 AMR output.
 
 The Liputan 6 parser writes one AMR graph per sentence, named
-``{doc_id}_{sent_idx}.txt``, and packages the files below an ``amr_graphs/``
-directory in a ZIP archive. This script groups those sentence files by
-document, orders them by ``sent_idx``, and saves one float32 ``n x n`` matrix
-per document. Entry ``[i, j]`` is the SMATCH F-score between sentences i and
-j. The diagonal is zero to preserve the convention used by the original
-XLSum script (and to avoid self-loops unless the GCN adds them explicitly).
-
-The ZIP files are read directly; they do not need to be extracted.
+``{doc_id}_{sent_idx}.txt``. This script reads either extracted ``.txt`` files
+or a ZIP archive, groups sentences by document, orders them by ``sent_idx``,
+and saves one float32 ``n x n`` matrix per document. Entry ``[i, j]`` is the
+SMATCH F-score between sentences i and j. The diagonal is zero to preserve the
+convention used by the original XLSum script.
 
 Examples::
 
-    python scripts/liputan6/build_smatch_adjacency.py
+    conda run --name generate_amr python scripts/liputan6/build_smatch_adjacency.py
 
-    python scripts/liputan6/build_smatch_adjacency.py \
-        --train-zip path/to/train.zip --test-zip path/to/test.zip \
-        --output data/liputan6/adjacency_matrix_amr --max-documents 10
+    conda run --name generate_amr python scripts/liputan6/build_smatch_adjacency.py \
+        --split dev --dev-dir path/to/extracted/dev \
+        --output data/liputan6/adjacency_matrices --max-documents 10
 """
 
 from __future__ import annotations
@@ -181,6 +178,31 @@ def index_archive(archive: zipfile.ZipFile) -> dict[str, list[tuple[int, str]]]:
     return dict(grouped)
 
 
+def index_directory(directory: Path) -> dict[str, list[tuple[int, Path]]]:
+    """Return ``doc_id -> [(sent_idx, path), ...]`` for extracted AMR files."""
+    grouped: dict[str, list[tuple[int, Path]]] = defaultdict(list)
+    seen: set[tuple[str, int]] = set()
+
+    for graph_path in directory.rglob("*.txt"):
+        match = SENTENCE_FILE_RE.fullmatch(graph_path.name)
+        if not match:
+            continue
+
+        doc_id = match.group("doc_id")
+        sent_idx = int(match.group("sent_idx"))
+        key = (doc_id, sent_idx)
+        if key in seen:
+            raise ValueError(
+                f"duplicate sentence {doc_id}_{sent_idx} below {directory}"
+            )
+        seen.add(key)
+        grouped[doc_id].append((sent_idx, graph_path))
+
+    for members in grouped.values():
+        members.sort(key=lambda item: item[0])
+    return dict(grouped)
+
+
 def document_sort_key(value: str) -> tuple[bool, int | str]:
     """Sort numeric document IDs numerically and other IDs lexically."""
     return (not value.isdigit(), int(value) if value.isdigit() else value)
@@ -242,6 +264,58 @@ def process_archive(
     return counts
 
 
+def process_directory(
+    input_dir: Path,
+    split: str,
+    output_root: Path,
+    overwrite: bool = False,
+    max_documents: int | None = None,
+) -> dict[str, int]:
+    """Process one directory of extracted sentence AMRs."""
+    output_dir = output_root / split
+    output_dir.mkdir(parents=True, exist_ok=True)
+    grouped = index_directory(input_dir)
+    doc_ids = sorted(grouped, key=document_sort_key)
+    if max_documents is not None:
+        doc_ids = doc_ids[:max_documents]
+
+    counts = {
+        "documents": len(doc_ids),
+        "sentences": sum(len(grouped[doc_id]) for doc_id in doc_ids),
+        "written": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+    error_details: list[tuple[str, str]] = []
+    print(
+        f"{split}: {counts['documents']:,} documents / "
+        f"{counts['sentences']:,} sentence graphs below {input_dir}"
+    )
+
+    for doc_id in tqdm(doc_ids, desc=f"SMATCH {split}", unit="doc"):
+        output_path = output_dir / f"{doc_id}.npy"
+        if output_path.exists() and not overwrite:
+            counts["skipped"] += 1
+            continue
+
+        try:
+            amr_strings = []
+            for _, graph_path in grouped[doc_id]:
+                content = graph_path.read_text(encoding="utf-8-sig")
+                amr_strings.append(parse_one_graph(content, str(graph_path)))
+            np.save(output_path, compute_smatch_adjacency(amr_strings))
+            counts["written"] += 1
+        except Exception as exc:
+            counts["errors"] += 1
+            error_details.append((doc_id, str(exc)))
+
+    if error_details:
+        print(f"{split}: first errors:")
+        for doc_id, message in error_details[:10]:
+            print(f"  {doc_id}: {message}")
+    return counts
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -251,22 +325,46 @@ def parse_args() -> argparse.Namespace:
         help="ZIP containing train sentence AMRs",
     )
     parser.add_argument(
+        "--dev-zip",
+        type=Path,
+        default=LIPUTAN6_DATA_DIR / "amr_graphs" / "archives" / "dev.zip",
+        help="ZIP containing dev sentence AMRs (fallback when --dev-dir is absent)",
+    )
+    parser.add_argument(
         "--test-zip",
         type=Path,
         default=LIPUTAN6_DATA_DIR / "amr_graphs" / "archives" / "test.zip",
         help="ZIP containing test sentence AMRs",
     )
     parser.add_argument(
+        "--train-dir",
+        type=Path,
+        default=LIPUTAN6_DATA_DIR / "amr_graphs" / "extracted" / "train",
+        help="directory containing extracted train .txt AMRs (preferred over ZIP)",
+    )
+    parser.add_argument(
+        "--dev-dir",
+        type=Path,
+        default=LIPUTAN6_DATA_DIR / "amr_graphs" / "extracted" / "dev",
+        help="directory containing extracted dev .txt AMRs (preferred over ZIP)",
+    )
+    parser.add_argument(
+        "--test-dir",
+        type=Path,
+        default=LIPUTAN6_DATA_DIR / "amr_graphs" / "extracted" / "test",
+        help="directory containing extracted test .txt AMRs (preferred over ZIP)",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=LIPUTAN6_DATA_DIR / "adjacency_matrices",
-        help="output root; train/ and test/ are created below it",
+        help="output root; one directory is created below it per split",
     )
     parser.add_argument(
         "--split",
-        choices=("train", "test", "both"),
+        choices=("train", "dev", "test", "both", "all"),
         default="both",
-        help="split to process (default: both)",
+        help="split to process; both means train+test, all includes dev",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="replace existing .npy files"
@@ -284,22 +382,51 @@ def main() -> None:
     if args.max_documents is not None and args.max_documents < 1:
         raise SystemExit("--max-documents must be at least 1")
 
-    archives_by_split = {"train": args.train_zip, "test": args.test_zip}
-    selected_splits = ("train", "test") if args.split == "both" else (args.split,)
-    archives = [(split, archives_by_split[split]) for split in selected_splits]
-    missing = [str(path) for _, path in archives if not path.is_file()]
-    if missing:
-        raise SystemExit("Missing input archive(s): " + ", ".join(missing))
+    directories_by_split = {
+        "train": args.train_dir,
+        "dev": args.dev_dir,
+        "test": args.test_dir,
+    }
+    archives_by_split = {
+        "train": args.train_zip,
+        "dev": args.dev_zip,
+        "test": args.test_zip,
+    }
+    if args.split == "both":
+        selected_splits = ("train", "test")
+    elif args.split == "all":
+        selected_splits = ("train", "dev", "test")
+    else:
+        selected_splits = (args.split,)
 
     summaries = {}
-    for split, zip_path in archives:
-        summaries[split] = process_archive(
-            zip_path=zip_path,
-            split=split,
-            output_root=args.output,
-            overwrite=args.overwrite,
-            max_documents=args.max_documents,
-        )
+    for split in selected_splits:
+        input_dir = directories_by_split[split]
+        zip_path = archives_by_split[split]
+        has_extracted_graphs = input_dir.is_dir() and next(
+            input_dir.rglob("*.txt"), None
+        ) is not None
+        if has_extracted_graphs:
+            summaries[split] = process_directory(
+                input_dir=input_dir,
+                split=split,
+                output_root=args.output,
+                overwrite=args.overwrite,
+                max_documents=args.max_documents,
+            )
+        elif zip_path.is_file():
+            summaries[split] = process_archive(
+                zip_path=zip_path,
+                split=split,
+                output_root=args.output,
+                overwrite=args.overwrite,
+                max_documents=args.max_documents,
+            )
+        else:
+            raise SystemExit(
+                f"Missing {split} AMRs: neither extracted directory "
+                f"{input_dir} nor archive {zip_path} is available"
+            )
 
     print("\nSUMMARY")
     for split, counts in summaries.items():

@@ -1,14 +1,13 @@
 """
 prepare_kaggle_datasets.py
 
-This script prepares zip files for uploading to Kaggle as datasets.
-It creates the following:
-  1. amr-code-modules.zip  — contains common/ and model_interface/ folders
-  2. amr-model.zip         — contains the finetuned model files
-  3. (Instructions)        — for xlsum data (too large to zip here)
+This script prepares files for uploading to Kaggle as datasets.
+It creates ``amr-code-modules.zip`` by default. Pass ``--create-model`` to also
+create ``amr-model.zip`` from the configured local model directory. It then
+prints instructions for XLSum data, which is too large to package by default.
 
 Usage:
-    python scripts/prepare_kaggle_datasets.py
+    conda run --name generate_amr python scripts/prepare_kaggle_datasets.py
 
 After running, upload the generated zip files to Kaggle:
   - Go to https://www.kaggle.com/datasets
