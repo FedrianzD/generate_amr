@@ -15,3 +15,7 @@ __pycache__/
 /outputs/
 /finetune/.cache/
 /finetune/outputs/
+
+# Local editor settings and diagnostic notes
+/.vscode/
+/PENMAN_WARNINGS.md
