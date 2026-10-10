@@ -19,9 +19,17 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
+import json
+import os
 import re
+import sqlite3
+import time
 import zipfile
 from collections import defaultdict
+from contextlib import closing
+from importlib.metadata import version
 from pathlib import Path, PurePosixPath
 
 import numpy as np
@@ -148,6 +156,84 @@ def compute_smatch_adjacency(amr_strings: list[str]) -> np.ndarray:
             adjacency[i, j] = score
             adjacency[j, i] = score
     return adjacency
+
+
+def process_sqlite(database, split, ids_csv, source_root, output_root, merge_path=None):
+    """Build only requested documents with exact canonical index/ID coverage."""
+    from npy_to_npz import load_matrix, merge_npz
+
+    with Path(ids_csv).open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    ids = [row["id"] for row in rows]
+    if not ids or len(ids) != len(set(ids)):
+        raise ValueError("Document CSV must contain unique IDs in an id column")
+    if any(not i or any(c in i for c in ("/", "\\", ":")) or i in {".", ".."} for i in ids):
+        raise ValueError("Unsafe document ID in CSV")
+    folder = Path(output_root) / split
+    folder.mkdir(parents=True, exist_ok=True)
+    additions, details = {}, []
+    started = time.monotonic()
+    with closing(sqlite3.connect(Path(database).resolve().as_uri() + "?mode=ro", uri=True)) as db:
+        if db.execute("SELECT value FROM storage_metadata WHERE key='schema_version'").fetchone() != ("amr-documents-v1",):
+            raise ValueError("Unsupported AMR SQLite schema")
+        for number, doc_id in enumerate(ids, 1):
+            source = json.loads((Path(source_root) / split / f"{doc_id}.json").read_text(encoding="utf-8-sig"))
+            article = source["clean_article"]
+            if not isinstance(article, list) or not article:
+                raise ValueError(f"Invalid clean_article: {doc_id}")
+            count = len(article)
+            stored = db.execute(
+                "SELECT sent_idx, sentence_id, amr_penman FROM graphs "
+                "WHERE split=? AND doc_id=? ORDER BY sent_idx", (split, doc_id)).fetchall()
+            if [row[0] for row in stored] != list(range(count)):
+                raise ValueError(f"Incomplete or misaligned AMR indices: {doc_id}")
+            strings = []
+            for index, sentence_id, content in stored:
+                graphs = penman.loads(content)
+                if (sentence_id != f"{doc_id}_{index}" or len(graphs) != 1
+                        or graphs[0].metadata.get("id") != sentence_id
+                        or not graphs[0].triples or graphs[0].top is None):
+                    raise ValueError(f"Invalid stored AMR: {doc_id}_{index}")
+                strings.append(graph_to_oneline(graphs[0]))
+            path = folder / f"{doc_id}.npy"
+            reused = path.exists()
+            if reused:
+                matrix = load_matrix(path)
+                if matrix.shape != (count, count):
+                    raise ValueError(f"Existing matrix has wrong shape: {path}")
+            else:
+                matrix = compute_smatch_adjacency(strings)
+                temporary = path.with_suffix(".npy.tmp")
+                try:
+                    with temporary.open("wb") as handle:
+                        np.save(handle, matrix, allow_pickle=False)
+                    checked = load_matrix(temporary)
+                    if checked.shape != (count, count) or not np.array_equal(checked, matrix):
+                        raise ValueError(f"Saved matrix mismatch: {doc_id}")
+                    os.replace(temporary, path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            additions[doc_id] = path
+            details.append(dict(id=doc_id, sentences=count, reused=reused,
+                                npy_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+            print(f"SQLITE SMATCH {number}/{len(ids)} | id={doc_id} sentences={count} "
+                  f"reused={reused} elapsed={time.monotonic()-started:.1f}s", flush=True)
+    report = dict(split=split, database=str(database), ids_csv=str(ids_csv),
+                  ids_csv_sha256=hashlib.sha256(Path(ids_csv).read_bytes()).hexdigest(),
+                  smatch_version=version("smatch"), iteration_num=smatch.iteration_num,
+                  search="existing randomized SMATCH search; no deterministic seed guarantee",
+                  dtype="float32", diagonal=0, sentence_order="canonical sent_idx 0..n-1",
+                  documents=details)
+    if merge_path is not None:
+        report["merge"] = merge_npz(merge_path, additions)
+    report_path = Path(output_root) / f"{split}_sqlite_smatch_generation.json"
+    temporary = report_path.with_suffix(".json.tmp")
+    try:
+        temporary.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, report_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return report
 
 
 def index_archive(archive: zipfile.ZipFile) -> dict[str, list[tuple[int, str]]]:
@@ -374,11 +460,27 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="process only the first N documents per split (useful for testing)",
     )
+    parser.add_argument("--sqlite", type=Path, help="read targeted document AMRs from SQLite")
+    parser.add_argument("--document-ids-csv", type=Path, help="requested IDs in an id column")
+    parser.add_argument("--source-root", type=Path,
+                        default=LIPUTAN6_DATA_DIR / "source/Liputan6/liputan6/liputan6_data/canonical",
+                        help="canonical split folders for exact sentence coverage checks")
+    parser.add_argument("--merge-npz", type=Path, help="atomically merge generated matrices into this NPZ")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.sqlite is not None:
+        if args.split not in {"train", "dev", "test"} or args.document_ids_csv is None:
+            raise SystemExit("--sqlite requires one explicit split and --document-ids-csv")
+        if args.overwrite or args.max_documents is not None:
+            raise SystemExit("SQLite targeted mode reuses existing valid matrices; no overwrite or max-documents")
+        process_sqlite(args.sqlite, args.split, args.document_ids_csv,
+                       args.source_root, args.output, args.merge_npz)
+        return
+    if args.document_ids_csv is not None or args.merge_npz is not None:
+        raise SystemExit("--document-ids-csv and --merge-npz require --sqlite")
     if args.max_documents is not None and args.max_documents < 1:
         raise SystemExit("--max-documents must be at least 1")
 
