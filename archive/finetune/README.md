@@ -1,5 +1,13 @@
 # AMRBART training, evaluation, and inference
 
+Folder ini diarsipkan dari `finetune/` ke `archive/finetune/` pada 2026-10-10.
+Pipeline parser Liputan6 dan training GCN aktif tidak memakainya. Kode dan
+wrapper dipertahankan; command di bawah mencatat layout asli. Untuk memakai
+ulang training/inference, kembalikan folder ke root repositori sebagai
+`finetune/` terlebih dahulu atau sesuaikan path wrapper dan import proyek.
+Wrapper generik menentukan root dari parent folder, sehingga tidak dapat
+langsung dijalankan dari lokasi arsip dengan konfigurasi aslinya.
+
 Direktori ini mempertahankan training stack AMRBART untuk dua task:
 
 | Task | Input -> output | Metrik |
