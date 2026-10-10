@@ -1,5 +1,7 @@
 tensorboardX
 numpy
+torch>=2.4
+torch-geometric>=2.8,<2.9
 pandas
 notebook
 ipykernel
