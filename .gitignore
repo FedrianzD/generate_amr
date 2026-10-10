@@ -1,12 +1,42 @@
 # Python and notebook caches
 venv*/
+.venv/
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
 
 # Local datasets and reproducible pipeline outputs
 /data/liputan6/
 /artifacts/
+/runs/
+
+# Generated arrays, databases, datasets, checkpoints, and upload bundles.
+# Keep code and small experiment descriptions in Git, not binary run artifacts.
+*.npy
+*.npz
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db
+*.db-wal
+*.db-shm
+*.parquet
+*.arrow
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.log
+*.tmp
 
 # Local models, training data, caches, and run outputs
 /.cache/
@@ -15,7 +45,20 @@ __pycache__/
 /outputs/
 /finetune/.cache/
 /finetune/outputs/
+/archive/finetune/.cache/
+/archive/finetune/outputs/
+
+# Authentication and local environment settings (never commit secrets).
+.env
+.env.*
+!.env.example
+kaggle.json
+application_default_credentials.json
+service-account*.json
+service_account*.json
 
 # Local editor settings and diagnostic notes
 /.vscode/
 /PENMAN_WARNINGS.md
+Thumbs.db
+.DS_Store
