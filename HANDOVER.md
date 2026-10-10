@@ -1,5 +1,9 @@
 # Handover — Liputan6 → AMR
 
+> Historical snapshot, not current pipeline status. Cleanup on 2026-10-10 moved
+> older notebooks into `archive/`. Use `README.md` and `notebooks/README.md`
+> for maintained entry points and current output formats.
+
 Status as of 2026-08-12. Branch `liputan6-amr-pipeline` (19 commits ahead of
 `main`, pushed to `origin` = FedrianzD/generate_amr; `upstream` is Aimar's repo,
 never pushed to).
@@ -19,7 +23,7 @@ AMR parsing is **complete** for the assigned scope:
 
 - **9,994 graphs / 767 documents**, Liputan6 `train` split, 100% `OK` status
 - Ran on Kaggle T4 in two sessions (8.0 h then ~3 h) via
-  `notebooks/liputan6/amr_parse_id2id_abdi.ipynb`
+  `archive/notebooks/liputan6/amr_parse_id2id_abdi.ipynb`
 - Output lives in the Kaggle dataset **`liputan6-amr-graphs`**, one
   `{doc_id}_{sent_idx}.txt` per sentence
 
@@ -51,19 +55,18 @@ against the checkpoint's reference file — keep them.
 
 | Path | What |
 | --- | --- |
-| `notebooks/liputan6/amr_parse_id2id_abdi.ipynb` | the parser that produced the output |
+| `archive/notebooks/liputan6/amr_parse_id2id_abdi.ipynb` | the historical parser that produced the output |
 | `notebooks/liputan6/README.md` | gotchas, Kaggle setup, pipeline |
 | `scripts/liputan6/liputan6_to_csv.py` | Liputan6 JSON → `analysis_data.csv`, per sentence, with `split` |
 | `scripts/liputan6/build_smatch_adjacency.py` | Sentence AMR archives → document-level SMATCH matrices |
 | `data/liputan6/processed/analysis_data.csv` | 195,779 sentences / 16,350 docs (git-ignored, regenerate) |
-| `notebooks/liputan6/smatch_adjacency.ipynb` | One-document SMATCH adjacency demonstration |
-| `notebooks/liputan6/*_nafkhan.ipynb`, `*_nllb.ipynb` | parked concat route — needs translation, weights not public |
-| `notebooks/xlsum/` | Aimar's upstream XLSum notebooks, reference only |
+| `archive/notebooks/liputan6/*_nafkhan.ipynb`, `*_nllb.ipynb` | parked concat route — needs translation, weights not public |
+| `archive/notebooks/xlsum/` | Aimar's upstream XLSum notebooks, reference only |
 
 Regenerate the CSV with:
 
 ```bash
-python scripts/liputan6/liputan6_to_csv.py --mode sentence
+conda run --name generate_amr python scripts/liputan6/liputan6_to_csv.py --mode sentence
 ```
 
 ## Open questions

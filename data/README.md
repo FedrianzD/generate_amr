@@ -12,12 +12,22 @@ data/liputan6/
 |   `-- extractive_vs_smatch.csv         # generated comparison report
 |-- amr_graphs/
 |   |-- archives/{train,dev,test}.zip    # downloaded parser archives
-|   `-- extracted/{train,dev,test}/      # extracted AMR .txt files
-`-- adjacency_matrices/{train,dev,test}/ # one {doc_id}.npy per document
+|   |-- extracted/{train,dev,test}/      # original AMR .txt files (retained)
+|   `-- sqlite/{train,dev,test}.sqlite   # shared amr-documents-v1 graph storage
+|-- features/{train,dev,test}.pt          # trusted per-article id/embeddings records
+|-- features/drive-download-*/train_*.pt # downloaded train record-list shards
+|-- faktualitas_lip6_v2.csv               # factuality scores; rank prob_yes_factuality within train
+|-- adjacency_matrices/{train,dev,test}/ # one {doc_id}.npy per document, when retained
+`-- adjacency_matrices/{train,dev,test}.npz # compressed, document-keyed matrices
 ```
 
 All contents below `data/liputan6/` are Git-ignored. The directory layout is a
 local data contract, not source code.
+
+Dev/test SQLite exports use the same sentence-row schema as the train parser.
+They do not replace or regenerate adjacency matrices. For conversion and resume
+commands see [the SQLite converter guide](../scripts/liputan6/documents_to_sqlite.md).
+The train database may remain on Kaggle until downloaded to this layout.
 
 Generate the sentence table with:
 

@@ -1,5 +1,8 @@
 # generate_amr
 
+Training configurations, differences, and measured results are recorded in
+[EXPERIMENTS.md](EXPERIMENTS.md).
+
 Pipeline riset untuk mengubah kalimat berita Indonesia menjadi graph Abstract
 Meaning Representation (AMR), membangun adjacency matrix berbasis SMATCH, dan
 menganalisis hubungannya dengan ground truth extractive summarization.
@@ -18,17 +21,29 @@ Repositori juga masih menyimpan implementasi AMRBART upstream untuk training,
 evaluation, dan inference `text2amr`/`amr2text`. Bagian tersebut dipertahankan
 sebagai pipeline lanjutan/legacy dan didokumentasikan terpisah.
 
+## Entry points aktif
+
+Enam notebook workflow aktif tersedia di [`notebooks/README.md`](notebooks/README.md).
+Notebook XLSum, parser lama, route concat/translation, dan eksperimen sementara
+dipindahkan ke [`archive/`](archive/README.md) agar tidak bercampur dengan pipeline
+utama. Pemeriksaan pengembang ada di [`tests/`](tests/README.md).
+
 ## Status pipeline Liputan6
 
-- Parsing AMR train yang ditugaskan telah menghasilkan 9.994 graph dari 767
-  dokumen.
-- Satu graph disimpan untuk setiap kalimat dengan nama
-  `{doc_id}_{sent_idx}.txt`.
+- Pilot historis menghasilkan 9.994 graph dari 767 dokumen; angka ini bukan
+  inventaris output terbaru.
+- Parser Kaggle dan GCP menyimpan SQLite, satu baris per graph kalimat.
+  Atur `PREV_DB` untuk resume dari database hasil konversi atau run sebelumnya;
+  `PREV_DIR` hanya untuk migrasi folder `.txt` lama.
 - Adjacency matrix per dokumen berukuran `n x n`; elemen `[i, j]` adalah
   SMATCH F-score antara AMR kalimat `i` dan `j`.
 - Ground truth extractive tersedia pada field `extractive_summary` dalam JSON
   canonical Liputan6.
-- Implementasi GCN summarization belum menjadi bagian dari repositori ini.
+- Implementasi pilot GCN summarization tersedia untuk eksperimen awal.
+- Pilot GCN extractive summarization tersedia di
+  [`notebooks/liputan6/train_gcn.ipynb`](notebooks/liputan6/train_gcn.ipynb)
+  as the only active training entry point: the top 10,000 factuality-scored
+  train documents, full dev validation, and held-out test evaluation.
 
 ## Quick start
 
@@ -73,7 +88,7 @@ data/liputan6/processed/analysis_data.csv
 Notebook aktif untuk Liputan6 adalah:
 
 ```text
-notebooks/liputan6/amr_parse_id2id_abdi.ipynb
+notebooks/liputan6/amr_parse_id2id_abdi_kaggle_documents.ipynb
 ```
 
 Notebook tersebut ditujukan untuk Kaggle dan menggunakan model:
@@ -89,7 +104,7 @@ di [`notebooks/liputan6/README.md`](notebooks/liputan6/README.md).
 Untuk membuka notebook lokal:
 
 ```powershell
-conda run --name generate_amr jupyter notebook notebooks/liputan6/document_pairwise_smatch.ipynb
+conda run --name generate_amr jupyter notebook notebooks/diagnostics/document_pairwise_smatch.ipynb
 ```
 
 Untuk menjalankan analisis ground truth vs SMATCH pada data yang berada di
@@ -111,6 +126,10 @@ data/liputan6/amr_graphs/archives/test.zip
 Arsip boleh memiliki direktori internal, selama nama file graph mengikuti
 `{doc_id}_{sent_idx}.txt`.
 
+Kontrak CLI adjacency/analisis lama di bawah memakai file per kalimat. Jangan
+langsung memberikan `{doc_id}.txt` hasil konsolidasi tanpa memastikan consumer
+mendukung multi-graph. Lakukan smoke test sebelum mengubah layout input.
+
 ### 5. Bangun adjacency matrix SMATCH
 
 Train saja:
@@ -131,6 +150,11 @@ Output default:
 data/liputan6/adjacency_matrices/{split}/{doc_id}.npy
 ```
 
+Untuk menjalankan tahap yang sama di Kaggle tanpa mengimpor skrip repository,
+gunakan [`build_smatch_adjacency_kaggle.ipynb`](notebooks/liputan6/build_smatch_adjacency_kaggle.ipynb).
+Notebook tersebut mendukung input ZIP/folder `.txt`, multiprocessing CPU,
+resume, validasi hasil, dan pembuatan ZIP output.
+
 ### 6. Bandingkan ground truth dengan relasi SMATCH
 
 ```powershell
@@ -148,25 +172,58 @@ data/liputan6/processed/extractive_vs_smatch.csv
 Seluruh opsi dan variasi command tersedia di
 [`scripts/README.md`](scripts/README.md).
 
+### 7. Pilot GCN sentence selection
+
+Configure trusted train feature shards (or one `train.pt`), `dev.pt`, and
+`test.pt` in the notebook. Notebook memvalidasi jumlah baris feature, adjacency, dan kalimat
+sumber untuk setiap dokumen. Jalankan setelah memasang PyTorch pada environment
+Conda `generate_amr` (lihat `scripts/README.md`):
+
+```powershell
+conda run --name generate_amr jupyter notebook notebooks/liputan6/train_gcn.ipynb
+```
+
+The notebook ranks `train` rows in `data/liputan6/faktualitas_lip6_v2.csv` by
+`prob_yes_factuality`, excludes documents without exact canonical sentence-index
+coverage in `amr_graphs/sqlite/train.sqlite`, and selects the first 10,000 complete
+documents. It saves checked-candidate and exclusion reports. Missing selected
+features or adjacency still stop the run. Adjacency prefers `{split}.npz` with
+individual NPY files as fallback. It generates greedy ROUGE-1 F1 oracle labels, trains a
+two-layer residual GCN with an MLP, predicts ranked top-2 with trigram blocking,
+and selects checkpoints by dev macro ROUGE-1 F1. Position encoding is assumed
+already included in the supplied 768-dimensional features, not verified.
+
+Current oracle labels are capped at two sentences. The notebook uses PyG and writes
+to `runs/pyg-gcn-top10000-factuality-oracle2/`; baseline results are retained
+separately. See [the experiment record](EXPERIMENTS.md). Aktifkan
+`RUN_TEST_EVALUATION` pada cell terakhir setelah konfigurasi dipilih dari
+validasi. CLI training lama telah dipindahkan ke `archive/scripts/` dan tidak
+lagi menjadi entry point aktif; checkpoint dense lama tidak kompatibel dengan PyG.
+Setelah itu, `scripts/liputan6/evaluate_rouge.py` membandingkan kalimat yang
+terpilih dengan `clean_summary` dan menulis ROUGE-1/2/L.
+
 ## Struktur direktori
 
 ```text
 generate_amr/
 |-- common/                    # utilitas, konfigurasi, dan token AMR
 |-- model_interface/           # tokenizer dan arsitektur AMRBART
-|-- finetune/                  # training/evaluation/inference AMRBART
-|   `-- README.md              # command dan catatan pipeline legacy
 |-- scripts/
 |   |-- README.md              # indeks seluruh command CLI
 |   |-- prepare_kaggle_datasets.py
 |   `-- liputan6/
 |       |-- liputan6_to_csv.py
 |       |-- build_smatch_adjacency.py
-|       `-- check_extractive_vs_smatch.py
+|       |-- check_extractive_vs_smatch.py
+|       |-- benchmark_npy_vs_smatch.py
+|       `-- evaluate_rouge.py
 |-- notebooks/
 |   |-- README.md
-|   |-- liputan6/              # pipeline aktif dan notebook diagnostik
-|   `-- xlsum/                 # notebook referensi upstream
+|   |-- liputan6/              # enam notebook workflow aktif
+|   `-- diagnostics/           # inspeksi satu dokumen
+|-- tests/                     # pemeriksaan storage dan smoke test training
+|-- archive/                   # XLSum, parser lama, dan eksperimen retired
+|   `-- finetune/              # training/evaluation/inference AMRBART legacy
 |-- data/
 |   `-- README.md              # kontrak layout data lokal
 |-- artifacts/                 # bundle generated untuk Kaggle, Git-ignored
@@ -186,8 +243,8 @@ Kaggle tidak perlu dimasukkan ke Git.
 - [`notebooks/liputan6/README.md`](notebooks/liputan6/README.md): pipeline AMR
   Liputan6 dan special-token gotchas.
 - [`data/README.md`](data/README.md): layout input dan output lokal.
-- [`finetune/README.md`](finetune/README.md): training, evaluation, dan inference
-  AMRBART.
+- [`archive/finetune/README.md`](archive/finetune/README.md): arsip training,
+  evaluation, dan inference AMRBART.
 - [`HANDOVER.md`](HANDOVER.md): status pekerjaan dan keputusan riset.
 
 ## Komponen model
@@ -200,7 +257,8 @@ Repositori mempertahankan dua task AMRBART:
 | AMR-to-Text (`amr2text`) | Graph AMR -> teks | BLEU |
 
 Kode model utama berada pada `model_interface/`, sedangkan training loop dan
-evaluation berada pada `finetune/`.
+evaluation legacy diarsipkan pada `archive/finetune/`. Pipeline parser Liputan6
+dan training GCN aktif tidak bergantung pada folder tersebut.
 
 ## Batasan
 
